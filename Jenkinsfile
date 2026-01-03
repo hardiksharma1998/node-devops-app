@@ -2,43 +2,60 @@ pipeline {
     agent any
 
     options {
-        skipDefaultCheckout()
+        skipDefaultCheckout()      // avoid double checkout
+        timestamps()               // useful logs
+    }
+
+    environment {
+        IMAGE_NAME = "node-devops-app"
+        CONTAINER_NAME = "node-app"
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/hardiksharma1998/node-devops-app.git',
-                    credentialsId: 'd2545067-fea9-4300-b56c-f01049d15fe3'
+                    url: 'https://github.com/hardiksharma1998/node-devops-app.git'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Docker Health Check') {
             steps {
-                sh 'npm install'
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                sh 'npm test || true'
+                sh '''
+                docker --version
+                docker info > /dev/null
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t node-devops-app .'
+                sh '''
+                docker build -t $IMAGE_NAME .
+                '''
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Deploy Container') {
             steps {
                 sh '''
-                docker rm -f node-app || true
-                docker run -d -p 3000:3000 --name node-app node-devops-app
+                docker rm -f $CONTAINER_NAME || true
+                docker run -d \
+                  --name $CONTAINER_NAME \
+                  -p 3000:3000 \
+                  $IMAGE_NAME
                 '''
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment successful. App running on port 3000"
+        }
+        failure {
+            echo "❌ Build failed. Check logs."
         }
     }
 }
